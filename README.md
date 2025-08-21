@@ -1,3 +1,47 @@
+# Spline-Based Convolution Operator of SplineCNN in Paddle
+
+![paddle_logo](assets/paddle_logo.png)
+
+> [!IMPORTANT]
+> Spline-Based Convolution Operator of SplineCNN in Paddle origin from [Spline-Based Convolution Operator of SplineCNN](https://github.com/rusty1s/pytorch_spline_conv/tree/master) and adapt for Paddle.
+>
+> It was developed base version 050f58a of Spline-Based Convolution Operator of SplineCNN. It is recommended to install **nightly-build(develop)** Paddle before running any code in this branch.
+>
+> It was verified on Ubuntu 20.04. It may meet some problems if you are using other environment.
+
+## **Build and Install**
+
+You can install paddle-spline-conv through following commands.
+
+```bash
+# install nightly-build paddlepaddle-gpu
+pip uninstall paddlepaddle-gpu
+pip install --pre paddlepaddle-gpu -i https://www.paddlepaddle.org.cn/packages/nightly/cu118/
+
+# install paddle-cluster
+git clone https://github.com/PFCCLab/paddle_spline_conv.git
+python setup.py install
+```
+
+## **Unit Test**
+
+Please make sure you have installed paddle-spline-conv correctly before running unit tests
+
+```bash
+pip install pytest
+# (Optional): Install torch-spline-conv to test backward precision
+# where ${CUDA} should be replaced by either cpu, cu126, cu128, or cu129 depending on your PyTorch installation.
+pip install torch-spline-conv -f https://data.pyg.org/whl/torch-2.8.0+${CUDA}.html
+
+pytest
+```
+
+NOTE: paddle-spline-conv cpu operaters not support float16 and bfloat16 precision.
+
+
+# Below is Spline-Based Convolution Operator of SplineCNN's original README
+
+
 [pypi-image]: https://badge.fury.io/py/torch-spline-conv.svg
 [pypi-url]: https://pypi.python.org/pypi/torch-spline-conv
 [testing-image]: https://github.com/rusty1s/pytorch_spline_conv/actions/workflows/testing.yml/badge.svg

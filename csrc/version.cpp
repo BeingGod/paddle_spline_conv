@@ -1,33 +1,34 @@
-#include <Python.h>
-#include <torch/script.h>
+#include "extensions.h"
 
 #ifdef WITH_CUDA
-#ifdef USE_ROCM
-#include <hip/hip_version.h>
-#else
 #include <cuda.h>
 #endif
-#endif
 
-#ifdef _WIN32
-#ifdef WITH_CUDA
-PyMODINIT_FUNC PyInit__version_cuda(void) { return NULL; }
-#else
-PyMODINIT_FUNC PyInit__version_cpu(void) { return NULL; }
-#endif
-#endif
 
-int64_t cuda_version() {
+std::vector<paddle::Tensor> cuda_version() {
+  auto cpu_place = paddle::CPUPlace();
 #ifdef WITH_CUDA
-#ifdef USE_ROCM
-  return HIP_VERSION;
+  int64_t version = CUDA_VERSION;
 #else
-  return CUDA_VERSION;
+  int64_t version = -1;
 #endif
-#else
-  return -1;
-#endif
+  return {paddle::full({1}, version, paddle::DataType::INT64, cpu_place)};
 }
 
-static auto registry = torch::RegisterOperators().op(
-    "torch_spline_conv::cuda_version", [] { return cuda_version(); });
+
+std::vector<paddle::DataType> cuda_version_infer_dtype() {
+  return {paddle::DataType::INT64};
+}
+
+
+std::vector<std::vector<int64_t>> cuda_version_infer_shape(int64_t M) {
+  return {{1}};
+}
+
+
+PD_BUILD_OP(cuda_version)
+    .Inputs({})
+    .Outputs({"out"})
+    .SetKernelFn(PD_KERNEL(cuda_version))
+    .SetInferShapeFn(PD_INFER_SHAPE(cuda_version_infer_shape))
+    .SetInferDtypeFn(PD_INFER_DTYPE(cuda_version_infer_dtype));

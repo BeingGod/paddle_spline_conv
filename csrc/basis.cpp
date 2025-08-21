@@ -1,85 +1,102 @@
-#include <Python.h>
-#include <torch/script.h>
-
 #include "cpu/basis_cpu.h"
+#include "extensions.h"
 
 #ifdef WITH_CUDA
 #include "cuda/basis_cuda.h"
 #endif
 
-#ifdef _WIN32
-#ifdef WITH_CUDA
-PyMODINIT_FUNC PyInit__basis_cuda(void) { return NULL; }
-#else
-PyMODINIT_FUNC PyInit__basis_cpu(void) { return NULL; }
-#endif
-#endif
 
-std::tuple<torch::Tensor, torch::Tensor>
-spline_basis_fw(torch::Tensor pseudo, torch::Tensor kernel_size,
-                torch::Tensor is_open_spline, int64_t degree) {
-  if (pseudo.device().is_cuda()) {
+std::vector<paddle::Tensor> spline_basis_fw(paddle::Tensor &pseudo,
+                                            paddle::Tensor &kernel_size,
+                                            paddle::Tensor &is_open_spline,
+                                            int64_t degree) {
+  if (pseudo.is_gpu()) {
 #ifdef WITH_CUDA
-    return spline_basis_fw_cuda(pseudo, kernel_size, is_open_spline, degree);
+    auto ret =
+        spline_basis_fw_cuda(pseudo, kernel_size, is_open_spline, degree);
+    return {std::get<0>(ret), std::get<1>(ret)};
 #else
-    AT_ERROR("Not compiled with CUDA support");
+    PD_THROW("Not compiled with CUDA support");
 #endif
   } else {
-    return spline_basis_fw_cpu(pseudo, kernel_size, is_open_spline, degree);
+    auto ret = spline_basis_fw_cpu(pseudo, kernel_size, is_open_spline, degree);
+    return {std::get<0>(ret), std::get<1>(ret)};
   }
 }
 
-torch::Tensor spline_basis_bw(torch::Tensor grad_basis, torch::Tensor pseudo,
-                              torch::Tensor kernel_size,
-                              torch::Tensor is_open_spline, int64_t degree) {
-  if (grad_basis.device().is_cuda()) {
+
+std::vector<paddle::DataType> spline_basis_fw_infer_dtype(
+    paddle::DataType pseudo_dtype,
+    paddle::DataType kernel_size_dtype,
+    paddle::DataType is_open_spline_dtype) {
+  return {pseudo_dtype, kernel_size_dtype};
+}
+
+
+std::vector<std::vector<int64_t>> spline_basis_fw_infer_shape(
+    std::vector<int64_t> pseudo_shape,
+    std::vector<int64_t> kernel_size_shape,
+    std::vector<int64_t> is_open_spline_shape,
+    int64_t degree) {
+  auto E = pseudo_shape[0];
+  auto D = pseudo_shape[1];
+  auto S = (int64_t)(pow(degree + 1, D) + 0.5);
+
+  return {{E, S}, {E, S}};
+}
+
+PD_BUILD_OP(spline_basis_fw)
+    .Inputs({"pseudo", "kernel_size", "is_open_spline"})
+    .Attrs({"degree:int64_t"})
+    .Outputs({"basis", "weight_index"})
+    .SetKernelFn(PD_KERNEL(spline_basis_fw))
+    .SetInferShapeFn(PD_INFER_SHAPE(spline_basis_fw_infer_shape))
+    .SetInferDtypeFn(PD_INFER_DTYPE(spline_basis_fw_infer_dtype));
+
+
+std::vector<paddle::Tensor> spline_basis_bw(paddle::Tensor &grad_basis,
+                                            paddle::Tensor &pseudo,
+                                            paddle::Tensor &kernel_size,
+                                            paddle::Tensor &is_open_spline,
+                                            int64_t degree) {
+  if (grad_basis.is_gpu()) {
 #ifdef WITH_CUDA
-    return spline_basis_bw_cuda(grad_basis, pseudo, kernel_size, is_open_spline,
-                                degree);
+    return {spline_basis_bw_cuda(
+        grad_basis, pseudo, kernel_size, is_open_spline, degree)};
 #else
-    AT_ERROR("Not compiled with CUDA support");
+    PD_THROW("Not compiled with CUDA support");
 #endif
   } else {
-    return spline_basis_bw_cpu(grad_basis, pseudo, kernel_size, is_open_spline,
-                               degree);
+    return {spline_basis_bw_cpu(
+        grad_basis, pseudo, kernel_size, is_open_spline, degree)};
   }
 }
 
-using torch::autograd::AutogradContext;
-using torch::autograd::Variable;
-using torch::autograd::variable_list;
-
-class SplineBasis : public torch::autograd::Function<SplineBasis> {
-public:
-  static variable_list forward(AutogradContext *ctx, Variable pseudo,
-                               Variable kernel_size, Variable is_open_spline,
-                               int64_t degree) {
-    ctx->saved_data["degree"] = degree;
-    auto result = spline_basis_fw(pseudo, kernel_size, is_open_spline, degree);
-    auto basis = std::get<0>(result), weight_index = std::get<1>(result);
-    ctx->save_for_backward({pseudo, kernel_size, is_open_spline});
-    ctx->mark_non_differentiable({weight_index});
-    return {basis, weight_index};
-  }
-
-  static variable_list backward(AutogradContext *ctx, variable_list grad_outs) {
-    auto grad_basis = grad_outs[0];
-    auto saved = ctx->get_saved_variables();
-    auto pseudo = saved[0], kernel_size = saved[1], is_open_spline = saved[2];
-    auto degree = ctx->saved_data["degree"].toInt();
-    auto grad_pseudo = spline_basis_bw(grad_basis, pseudo, kernel_size,
-                                       is_open_spline, degree);
-    return {grad_pseudo, Variable(), Variable(), Variable()};
-  }
-};
-
-std::tuple<torch::Tensor, torch::Tensor>
-spline_basis(torch::Tensor pseudo, torch::Tensor kernel_size,
-             torch::Tensor is_open_spline, int64_t degree) {
-  pseudo = pseudo.contiguous();
-  auto result = SplineBasis::apply(pseudo, kernel_size, is_open_spline, degree);
-  return std::make_tuple(result[0], result[1]);
+std::vector<paddle::DataType> spline_basis_bw_infer_dtype(
+    paddle::DataType grad_basis_dtype,
+    paddle::DataType pseudo_dtype,
+    paddle::DataType kernel_size_dtype,
+    paddle::DataType is_open_spline_dtype) {
+  return {pseudo_dtype};
 }
 
-static auto registry = torch::RegisterOperators().op(
-    "torch_spline_conv::spline_basis", &spline_basis);
+
+std::vector<std::vector<int64_t>> spline_basis_bw_infer_shape(
+    std::vector<int64_t> grad_basis_shape,
+    std::vector<int64_t> pseudo_shape,
+    std::vector<int64_t> kernel_size_shape,
+    std::vector<int64_t> is_open_spline_shape,
+    int64_t degree) {
+  auto E = pseudo_shape[0];
+  auto D = pseudo_shape[1];
+
+  return {{E, D}};
+}
+
+PD_BUILD_OP(spline_basis_bw)
+    .Inputs({"grad_basis", "pseudo", "kernel_size", "is_open_spline"})
+    .Attrs({"degree:int64_t"})
+    .Outputs({"grad_pseudo"})
+    .SetKernelFn(PD_KERNEL(spline_basis_bw))
+    .SetInferShapeFn(PD_INFER_SHAPE(spline_basis_bw_infer_shape))
+    .SetInferDtypeFn(PD_INFER_DTYPE(spline_basis_bw_infer_dtype));
