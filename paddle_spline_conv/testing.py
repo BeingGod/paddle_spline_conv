@@ -3,14 +3,12 @@ from typing import Any
 import paddle
 import pytest
 
-dtypes = [paddle.float32, paddle.float64]
+dtypes = [paddle.float32, paddle.float64, paddle.bfloat16]
 
 
 devices = [paddle.CPUPlace()]
 if paddle.device.cuda.device_count() > 0:
     devices += [paddle.CUDAPlace(0)]
-    # NOTE: paddle cpu not support bfloat16 dtype
-    dtypes += [paddle.bfloat16]
 
 
 def tensor(x: Any, dtype: paddle.dtype, device: paddle.device):
