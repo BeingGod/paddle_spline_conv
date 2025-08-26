@@ -18,7 +18,7 @@ You can install paddle-spline-conv through following commands.
 pip uninstall paddlepaddle-gpu
 pip install --pre paddlepaddle-gpu -i https://www.paddlepaddle.org.cn/packages/nightly/cu118/
 
-# install paddle-cluster
+# install paddle-spline-conv
 git clone https://github.com/PFCCLab/paddle_spline_conv.git
 python setup.py install
 ```
