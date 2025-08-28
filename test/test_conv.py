@@ -90,6 +90,21 @@ def test_spline_conv_forward(test, dtype, device):
     error = 1e-2 if dtype == paddle.bfloat16 else 1e-7
     assert paddle.allclose(out, expected, rtol=error, atol=error)
 
+    jit = paddle.jit.to_static(spline_conv)
+    jit_out = jit(
+        x,
+        edge_index,
+        pseudo,
+        weight,
+        kernel_size,
+        is_open_spline,
+        1,
+        True,
+        root_weight,
+        bias,
+    )
+    assert paddle.allclose(jit_out, expected, rtol=error, atol=error)
+
 
 def spline_conv_backward_paddle(degree, device):
     set_testing_device(device)

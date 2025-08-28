@@ -71,7 +71,7 @@ def spline_conv(
     if norm:
         ones = paddle.ones((E,), dtype=x.dtype)
         deg = paddle.zeros((N,), out.dtype).put_along_axis_(row, ones, 0, reduce="add")
-        out = out / deg.unsqueeze(-1).clip_(min=1)
+        out = out / deg.unsqueeze(-1).clip(min=1)
 
     # Weight root node separately (if wished).
     if root_weight is not None:
